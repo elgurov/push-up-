@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stream Widget - Pushups Counter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #0b0b0e;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        /* Контейнер камеры на весь экран */
+        .camera-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: #000;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Растягивает камеру на весь экран без черных полос */
+        }
+
+        /* Интерфейс поверх камеры */
+        .overlay-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            pointer-events: none; /* Пропускает клики сквозь пустые места */
+        }
+
+        /* Элементы, на которые можно нажимать */
+        .interactive {
+            pointer-events: auto;
+        }
+
+        /* Верхняя панель: Счетчик отжиманий */
+        .counter-box {
+            background: rgba(18, 18, 24, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-top: 10px;
+        }
+
+        .counter-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #a0a0b0;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        .counter-main {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .counter-value {
+            font-size: 38px;
+            font-weight: 800;
+            color: #00ff88;
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .btn-count {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 22px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+
+        .btn-count:active {
+            transform: scale(0.92);
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .btn-plus {
+            background: linear-gradient(135deg, #00ff88, #00b359);
+            color: #000;
+        }
+
+        /* Нижняя часть: Текст донатов и кнопка меню */
+        .bottom-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .donation-card {
+            background: rgba(18, 18, 24, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 14px 18px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+        }
+
+        .donation-rule {
+            font-size: 15px;
+            font-weight: 700;
+            color: #ffcc00;
+            margin-bottom: 4px;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+        }
+
+        .donation-phone {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #ffffff;
+        }
+
+        /* Кнопка открытия меню */
+        .menu-toggle-btn {
+            align-self: flex-end;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(18, 18, 24, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Выдвижное меню (Шторка) */
+        .settings-menu {
+            position: absolute;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            background: #14141c;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 25px 20px 35px 20px;
+            transition: bottom 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+            z-index: 10;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+        }
+
+        .settings-menu.open {
+            bottom: 0;
+        }
+
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .menu-title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .close-menu {
+            background: none;
+            border: none;
+            color: #a0a0b0;
+            font-size: 22px;
+            cursor: pointer;
+        }
+
+        .menu-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .menu-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .menu-btn:active {
+            background: rgba(255, 255, 255, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Камера -->
+    <div class="camera-container">
+        <video id="camera" autoplay playsinline muted></video>
+    </div>
+
+    <!-- Интерфейс -->
+    <div class="overlay-ui">
+        
+        <!-- Верх: Счетчик отжиманий -->
+        <div class="counter-box interactive">
+            <div class="counter-title">⚡ Отжимания</div>
+            <div class="counter-main">
+                <button class="btn-count" onclick="changeCount(-1)">−</button>
+                <div class="counter-value" id="counter">0</div>
+                <button class="btn-count btn-plus" onclick="changeCount(1)">+</button>
+            </div>
+        </div>
+
+        <!-- Низ: Текст и кнопка настройки -->
+        <div class="bottom-panel">
+            <div class="donation-card interactive">
+                <div class="donation-rule">Каждые 50тг — 1 Отжимание</div>
+                <div class="donation-phone">7ноль6 66семь 88 19</div>
+            </div>
+
+            <button class="menu-toggle-btn interactive" onclick="toggleMenu()">⚙️</button>
+        </div>
+
+    </div>
+
+    <!-- Выдвижное меню настроек камеры -->
+    <div class="settings-menu" id="settingsMenu">
+        <div class="menu-header">
+            <span class="menu-title">Настройки камеры</span>
+            <button class="close-menu" onclick="toggleMenu()">✕</button>
+        </div>
+        <div class="menu-section">
+            <button class="menu-btn" onclick="switchCamera()">🔄 Сменить камеру (Фронт / Тылл)</button>
+            <button class="menu-btn" onclick="resetCounter()" style="color: #ff5555; border-color: rgba(255,85,85,0.2);">🗑 Сбросить счетчик</button>
+        </div>
+    </div>
+
+    <script>
+        let count = 0;
+        const counterEl = document.getElementById('counter');
+
+        function changeCount(val) {
+            count += val;
+            if (count < 0) count = 0;
+            counterEl.textContent = count;
+        }
+
+        function resetCounter() {
+            if(confirm("Сбросить счетчик отжиманий?")) {
+                count = 0;
+                counterEl.textContent = count;
+                toggleMenu();
+            }
+        }
+
+        function toggleMenu() {
+            const menu = document.getElementById('settingsMenu');
+            menu.classList.toggle('open');
+        }
+
+        // Логика работы с камерой (поддержка переключения фронтальной/основной)
+        let currentFacingMode = 'user'; // 'user' - фронтальная, 'environment' - основная
+        let currentStream = null;
+
+        async function initCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    facingMode: currentFacingMode,
+                    width: { ideal: 1080 },
+                    height: { ideal: 1920 }
+                },
+                audio: false
+            };
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                currentStream = stream;
+                const videoElement = document.getElementById('camera');
+                videoElement.srcObject = stream;
+            } catch (err) {
+                alert("Ошибка доступа к камере: " + err.message);
+                console.error(err);
+            }
+        }
+
+        function switchCamera() {
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            initCamera();
+            toggleMenu();
+        }
+
+        // Запускаем камеру при загрузке страницы
+        window.addEventListener('load', () => {
+            initCamera();
+        });
+    </script>
+</body>
+</html>
